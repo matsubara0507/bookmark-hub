@@ -73,13 +73,17 @@ function commit(param) {
   })
   .then((blob) => {
     // $('#result').text($('#result').text() + ' : ' + JSON.stringify(blob));
+    var content = `- ${url} : ${message}`
+    if (blob != {}) {
+      content = Base64.decode(blob.content) + `\n${content}`;
+    }
     var data = {
       'message': (message ? message : 'Bookmark!'),
       'committer': {
         'name': context.name,
         'email': context.email
       },
-      'content': Base64.encode(`- ${url} : ${message}`),
+      'content': Base64.encode(content),
       'branch': branch
     }
     if (blob != {}) {
