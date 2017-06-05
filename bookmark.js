@@ -8,6 +8,15 @@ $(() => {
   });
 });
 
+var Base64 = {
+  encode: function(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  },
+  decode: function(str) {
+    return decodeURIComponent(escape(atob(str)));
+  }
+};
+
 function initPopup() {
   chrome.storage.sync.get(["repository", "branch", "filepath"], (item) => {
     $('#repository').val(item.repository ? item.repository : '');
@@ -44,48 +53,45 @@ function commit(param) {
   .then(initUserInfo)
   .then(get(`${repository}/branches/${branch}`))
   .then((branch) => {
-    context.parentSha = branch['commit']['sha'];
     if (!(context.name && context.email)) {
       context.name = branch['commit']['commit']['author']['name'];
       context.email = branch['commit']['commit']['author']['email'];
     }
     return get(`${repository}/git/trees/${branch['commit']['commit']['tree']['sha']}`)();
   })
-  .then((pTree) => {
-    context.pastTree = pTree['tree'];
-    var content = `- ${url} : ${message}`
-    return post(`${repository}/git/blobs`, { 'content': content, 'encoding': 'utf-8' })();
+  .then((tree) => {
+    // $('#result').text($('#result').text() + ' : ' + 'aaa');
+    return existContents(filepath, tree.tree, repository);
+  })
+  .then((exist) => {
+    // $('#result').text($('#result').text() + ' : ' + JSON.stringify(exist));
+    if (exist.ok) {
+      return get(`${repository}/git/blobs/${exist.sha}`)();
+    } else {
+      return new Promise((resolve, reject) => { resolve({}) });
+    }
   })
   .then((blob) => {
-    return post(`${repository}/git/trees`, {
-      'tree': context.pastTree.concat([{
-        'path': `bookmarks/${filepath}.md`,
-        'mode': '100644',
-        'type': 'blob',
-        'sha': blob['sha']
-      }])
-    })();
-  })
-  .then((tree) => {
-    return post(`${repository}/git/commits`, {
-      'message': message ? message : 'Bookmark!',
-      'author': {
+    // $('#result').text($('#result').text() + ' : ' + JSON.stringify(blob));
+    var data = {
+      'message': (message ? message : 'Bookmark!'),
+      'committer': {
         'name': context.name,
-        'email': context.email,
-        'date': formatISO8601(new Date())
+        'email': context.email
       },
-      'parents': [context.parentSha],
-      'tree': tree['sha']
-    })();
-  })
-  .then((commit) => {
-    return patch(`${repository}/git/refs/heads/${branch}`, { 'sha': commit['sha'] })();
+      'content': Base64.encode(`- ${url} : ${message}`),
+      'branch': branch
+    }
+    if (blob != {}) {
+      data.sha = blob.sha;
+    }
+    return put(`${repository}/contents/${filepath}`, data)();
   })
   .then((data) => {
-    $('#result').val(data['url']);
+    $('#result').text('Succsess!: ' + JSON.stringify(data));
     chrome.storage.sync.set({'repository': repository, 'branch': branch, 'filepath': filepath});
   })
-  .catch((err) => { $('#result').val(err); });
+  .catch((err) => { $('#result').text($('#result').text() + ' : ' + err); });
 }
 
 function initContext() {
@@ -128,6 +134,7 @@ function fetch(method, endpoint, data) {
           headers : { Authorization: `token ${token}` }
         };
         break;
+      case 'PUT':
       case 'POST':
       case 'PATCH':
         params = {
@@ -149,8 +156,8 @@ function fetch(method, endpoint, data) {
     .done((data) => {
       resolve(data);
     }).fail((jqXHR, textStatus, errorThrown) => {
-      var temp = `${endpoint}: ${jqXHR.status}: ${textStatus}: ${errorThrown}`;
-      reject(`REST API Error !!: ${temp}: ${context.name}: ${context.email}`);
+      var temp = `${endpoint}: ${JSON.stringify(jqXHR)}: ${textStatus}: ${errorThrown}`;
+      reject(`REST API Error !!: ${temp}`);
     });
   });
 }
@@ -159,12 +166,57 @@ function get(endpoint) {
   return function() { return fetch('GET', endpoint, null) };
 }
 
+function put(endpoint, data) {
+  return function() { return fetch('PUT', endpoint, data) };
+}
+
 function post(endpoint, data) {
   return function() { return fetch('POST', endpoint, data) };
 }
 
 function patch(endpoint, data) {
   return function() { return fetch('PATCH', endpoint, data) };
+}
+
+function existContents(filepath, pTree, repository) {
+  var loop = ((filepaths, index, pTree, resolve) => {
+    var path = filepaths[index];
+    // $('#result').text($('#result').text() + ` : ${index} ${path}`);
+    var result = {};
+    for (var i in pTree) {
+      if (pTree[i].path == path) {
+        if (i == filepaths.length - 1 && pTree[i].type == 'blob') {
+          result = pTree[i]
+          break;
+        } else if (pTree[i].type == 'tree') {
+          result = pTree[i]
+          break;
+        }
+      }
+    }
+    switch (result.type) {
+      case 'blob':
+        resolve({ ok: true, sha: pTree[i].sha });
+        break;
+      case 'tree':
+        $.ajax({
+          url: `${baseUrl}/repos/${user}/${repository}/git/trees/${pTree[i].sha}`,
+          headers : { Authorization: `token ${token}` }
+        }).done((tree) => {
+          loop(filepaths, index + 1, tree.tree, resolve);
+        }).fail((jqXHR, textStatus, errorThrown) => {
+          resolve({ ok: false });
+        });
+        break;
+      default:
+        resolve({ ok: false });
+    }
+  });
+
+  return new Promise((resolve, reject) => {
+    // $('#result').text($('#result').text() + ' : ' + JSON.stringify(filepath.split('/')));
+    loop(filepath.split('/'), 0, pTree, resolve);
+  });
 }
 
 function formatISO8601(date) {
