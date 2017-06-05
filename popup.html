@@ -1,12 +1,21 @@
 <html>
-  <body>
+  <head>
+    <link rel="stylesheet" type="text/css" href="bookmark.css">
     <script src="lib/jquery.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="src/bookmark.js" type="text/javascript" charset="utf-8"></script>
+  </head>
+  <body>
     <div class="bookmark-page">
       <div class="bookmark-container">
         <div class="bookmark-item">
-          <input id="repository" type="text" placeholder="repository" />
-          <input id="branch" type="text" placeholder="branch" />
+          <div  tabindex="0" class="repo-menu onclick-menu">
+            <p class="repo-menu-text"></p>
+            <ul class="repo-menu-contents onclick-menu-contents"></ul>
+          </div>
+          <div  tabindex="0" class="branch-menu onclick-menu">
+            <p class="branch-menu-text"></p>
+            <ul class="branch-menu-contents onclick-menu-contents"></ul>
+          </div>
           <input id="filepath" type="text" placeholder="filepath" />
           <input id="url" type="text" placeholder="url" />
           <input id="message" type="text" placeholder="message" />

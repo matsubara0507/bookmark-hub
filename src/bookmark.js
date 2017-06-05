@@ -3,9 +3,29 @@ let context = {};
 
 $(() => {
   initPopup();
-  $('#commit').click((e) => {
-    commit(getBookmarkParam());
-  });
+  initContext()
+  .then(updateRepo)
+  .then(updateBranch)
+  .then(() => {
+    $('#commit').click((e) => {
+      commit(getBookmarkParam());
+    });
+    $('.repo-menu-item').click((e) => {
+      let target = $(e.target);
+      const repoName = target.attr('data');
+      chrome.storage.sync.set({'repository': repoName, 'branch': 'master'});
+      $('.repo-menu-text').text(repoName);
+      $('.branch-menu-text').text('master');
+      updateBranch();
+    });
+    $('.branch-menu-item').click((e) => {
+      let target = $(e.target);
+      const branchName = target.attr('data');
+      chrome.storage.sync.set({'branch': branchName});
+      $('.branch-menu-text').text(branchName);
+    })
+  })
+  .catch((err) => { $('#result').text($('#result').text() + ' : ' + err); });
 });
 
 var Base64 = {
@@ -19,8 +39,8 @@ var Base64 = {
 
 function initPopup() {
   chrome.storage.sync.get(["repository", "branch", "filepath"], (item) => {
-    $('#repository').val(item.repository ? item.repository : '');
-    $('#branch').val(item.branch ? item.branch : '');
+    $('.repo-menu-text').text(item.repository ? item.repository : '');
+    $('.branch-menu-text').text(item.branch ? item.branch : '');
     $('#filepath').val(item.filepath ? item.filepath : '');
   });
   chrome.tabs.getSelected(window.id, function (tab) {
@@ -28,9 +48,40 @@ function initPopup() {
   });
 }
 
+function updateRepo() {
+  return new Promise((resolve, reject) => {
+    $.ajax({
+      url: `${baseUrl}/user/repos?affiliation=owner`,
+      headers: {Authorization: `token ${token}`}
+    }).done((repos) => {
+      repos.forEach((repo) => {
+        let content = `<li><div class='repo-menu-item' data="${repo.name}">${repo.name}</div></li>`
+        $('.repo-menu-contents').append(content);
+      });
+      resolve();
+    }).fail((e) => { reject(`error update repo: ${JSON.stringify(e)}`) });
+  })
+}
+
+function updateBranch(){
+  return new Promise((resolve, reject) => {
+    let repository = $('.repo-menu-text').text();
+    $.ajax({
+      url: `${baseUrl}/repos/${user}/${repository}/branches`,
+      headers: {Authorization: `token ${token}`}
+    }).done((branches) => {
+      branches.forEach((branch) => {
+        let content = `<li><div class='branch-menu-item' data="${branch.name}">${branch.name}</div></li>`
+        $('.branch-menu-contents').append(content);
+      });
+      resolve();
+    }).fail((e) => { reject(`error update branch: ${repository}: ${JSON.stringify(e)}`) });
+  });
+}
+
 function getBookmarkParam() {
-  const repository = $('#repository').val();
-  const branch = $('#branch').val();
+  const repository = $('.repo-menu-text').text();
+  const branch = $('.branch-menu-text').text();
   const filepath = $('#filepath').val();
   const url = $('#url').val();
   const message = $('#message').val();
