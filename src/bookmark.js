@@ -2,27 +2,30 @@ let baseUrl, accessToken, user;
 let context = {};
 
 $(() => {
-  initPopup();
   initContext()
   .then(updateRepo)
+  .then(initPopup)
   .then(updateBranch)
+  .then(() => {
+    return new Promise((resolve, reject) => {
+      chrome.storage.sync.get(["branch"], (item) => {
+        $('#branch').val(item.branch ? item.branch : '');
+        resolve();
+      });
+    });
+  })
   .then(() => {
     $('#commit').click((e) => {
       commit(getBookmarkParam());
     });
-    $('.repo-menu-item').click((e) => {
-      let target = $(e.target);
-      const repoName = target.attr('data');
+    $('select#repo').change(() => {
+      const repoName = $('#repo').val();
       chrome.storage.sync.set({'repository': repoName, 'branch': 'master'});
-      $('.repo-menu-text').text(repoName);
-      $('.branch-menu-text').text('master');
+      $('#branch').val('master');
       updateBranch();
     });
-    $('.branch-menu-item').click((e) => {
-      let target = $(e.target);
-      const branchName = target.attr('data');
-      chrome.storage.sync.set({'branch': branchName});
-      $('.branch-menu-text').text(branchName);
+    $('select#branch').change(() => {
+      chrome.storage.sync.set({'branch': $('#branch').val()});
     })
   })
   .catch((err) => { $('#result').text($('#result').text() + ' : ' + err); });
@@ -37,15 +40,32 @@ var Base64 = {
   }
 };
 
+function initContext() {
+  content = {};
+  return new Promise((resolve, reject) => {
+    chrome.storage.sync.get(["token", "user", "baseUrl"], (item) => {
+      if (!item.token) {
+        reject(new Error("need login"));
+      }
+      token = item.token;
+      user = item.user;
+      baseUrl = item.baseUrl;
+      resolve();
+    });
+  });
+}
+
 function initPopup() {
-  chrome.storage.sync.get(["repository", "branch", "filepath"], (item) => {
-    $('.repo-menu-text').text(item.repository ? item.repository : '');
-    $('.branch-menu-text').text(item.branch ? item.branch : '');
-    $('#filepath').val(item.filepath ? item.filepath : '');
-  });
-  chrome.tabs.getSelected(window.id, function (tab) {
-    $('#url').val(tab.url)
-  });
+  return new Promise((resolve, reject) => {
+    chrome.tabs.getSelected(window.id, function (tab) {
+      $('#url').val(tab.url)
+    });
+    chrome.storage.sync.get(["repository", "filepath"], (item) => {
+      $('#repo').val(item.repository ? item.repository : '');
+      $('#filepath').val(item.filepath ? item.filepath : '');
+      resolve();
+    });
+  })
 }
 
 function updateRepo() {
@@ -54,9 +74,10 @@ function updateRepo() {
       url: `${baseUrl}/user/repos?affiliation=owner`,
       headers: {Authorization: `token ${token}`}
     }).done((repos) => {
+      $('.repo-menu').empty();
       repos.forEach((repo) => {
-        let content = `<li><div class='repo-menu-item' data="${repo.name}">${repo.name}</div></li>`
-        $('.repo-menu-contents').append(content);
+        let content = `<option class='repo-menu-item' data="${repo.name}">${repo.name}</option>`
+        $('.repo-menu').append(content);
       });
       resolve();
     }).fail((e) => { reject(`error update repo: ${JSON.stringify(e)}`) });
@@ -65,14 +86,15 @@ function updateRepo() {
 
 function updateBranch(){
   return new Promise((resolve, reject) => {
-    let repository = $('.repo-menu-text').text();
+    let repository = $('#repo').val();
     $.ajax({
       url: `${baseUrl}/repos/${user}/${repository}/branches`,
       headers: {Authorization: `token ${token}`}
     }).done((branches) => {
+      $('.branch-menu').empty();
       branches.forEach((branch) => {
-        let content = `<li><div class='branch-menu-item' data="${branch.name}">${branch.name}</div></li>`
-        $('.branch-menu-contents').append(content);
+        let content = `<option class='branch-menu-item' data="${branch.name}">${branch.name}</option>`
+        $('.branch-menu').append(content);
       });
       resolve();
     }).fail((e) => { reject(`error update branch: ${repository}: ${JSON.stringify(e)}`) });
@@ -80,8 +102,8 @@ function updateBranch(){
 }
 
 function getBookmarkParam() {
-  const repository = $('.repo-menu-text').text();
-  const branch = $('.branch-menu-text').text();
+  const repository = $('#repo').val();
+  const branch = $('#branch').val();
   const filepath = $('#filepath').val();
   const url = $('#url').val();
   const message = $('#message').val();
@@ -143,25 +165,11 @@ function commit(param) {
     return put(`${repository}/contents/${filepath}`, data)();
   })
   .then((data) => {
-    $('#result').text('Succsess!: ' + JSON.stringify(data));
+    // $('#result').text('Succsess!: ' + JSON.stringify(data));
+    $('#result').text('Succsess!');
     chrome.storage.sync.set({'repository': repository, 'branch': branch, 'filepath': filepath});
   })
   .catch((err) => { $('#result').text($('#result').text() + ' : ' + err); });
-}
-
-function initContext() {
-  content = {};
-  return new Promise((resolve, reject) => {
-    chrome.storage.sync.get(["token", "user", "baseUrl"], (item) => {
-      if (!item.token) {
-        reject(new Error("need login"));
-      }
-      token = item.token;
-      user = item.user;
-      baseUrl = item.baseUrl;
-      resolve();
-    });
-  });
 }
 
 function initUserInfo() {

@@ -1,11 +1,43 @@
+<!DOCTYPE html>
 <html>
   <head>
-    <link rel="stylesheet" type="text/css" href="bookmark.css">
+    <link rel="stylesheet" type="text/css" href="css/bookmark.css">
+    <link rel="stylesheet" type="text/css" href="css/primer.css">
     <script src="lib/jquery.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="src/bookmark.js" type="text/javascript" charset="utf-8"></script>
   </head>
   <body>
-    <div class="bookmark-page">
+    <div class="continer bookmark-page">
+      <div class="blankslate">
+        <h3>Bookmark to GitHub Repository</h3>
+      </div>
+      <form>
+        <dl class="form-group">
+          <dt><label>Repo : Branch</label></dt>
+          <dd>
+            <select id="repo" class="form-select select-sm repo-menu"></select>
+            <select id="branch" class="form-select select-sm branch-menu"></select>
+          </dd>
+          <dt><label>Filepath</label></dt>
+          <dd>
+            <input id="filepath" class="form-control input-sm" type="text" placeholder="filepath"/>
+          </dd>
+        </dl>
+        <dl class="form-group">
+          <dt><label>URL</label></dt>
+          <dd>
+            <input id="url" class="form-control input-sm" type="text" placeholder="url"/>
+          </dd>
+          <dt><label>Message</label></dt>
+          <dd>
+            <input id="message" class="form-control input-sm" type="text" placeholder="message"/>
+          </dd>
+        </dl>
+        <button id="commit" class="btn btn-primary" type="button">Bookmark!</button>
+      </form>
+      <div id="result"></div>
+    </div>
+    <!-- <div class="bookmark-page">
       <div class="bookmark-container">
         <div class="bookmark-item">
           <div  tabindex="0" class="repo-menu onclick-menu">
@@ -23,6 +55,6 @@
         <button id="commit">Bookmark!</button>
         <div id="result"></div>
       </div>
-    </div>
+    </div> -->
   </body>
 </html>
