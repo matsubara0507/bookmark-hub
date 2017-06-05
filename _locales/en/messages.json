@@ -1,8 +1,8 @@
 {
   "appName": {
-    "message": "Google Apps Script Github Assistant"
+    "message": "Bookmark using Github"
   },
   "appDesc": {
-    "message": "Manage your gas code with github(or github enterprise)"
+    "message": "Manage your bookmark using github"
   }
 }

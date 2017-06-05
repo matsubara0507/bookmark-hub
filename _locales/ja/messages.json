@@ -1,8 +1,8 @@
 {
   "appName": {
-    "message": "Google Apps Script Github アシスタント"
+    "message": "Bookmark using GitHub"
   },
   "appDesc": {
-    "message": "GithubとGithub EnterpriseでGASのインラインコードを管理"
+    "message": "Githubでブックマークを管理"
   }
 }
