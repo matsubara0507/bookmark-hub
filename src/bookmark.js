@@ -1,3 +1,5 @@
+"use strict";
+
 let baseUrl, token, user;
 let context = {};
 
@@ -7,7 +9,7 @@ $(() => {
   .then(initPopup)
   .then(updateBranch)
   .then(() => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       chrome.storage.sync.get(["branch"], (item) => {
         $('#branch').val(item.branch ? item.branch : '');
         resolve();
@@ -15,7 +17,7 @@ $(() => {
     });
   })
   .then(() => {
-    $('#commit').click((e) => {
+    $('#commit').click(() => {
       commit(getBookmarkParam());
     });
     $('select#repo').change(() => {
@@ -26,7 +28,7 @@ $(() => {
     });
     $('select#branch').change(() => {
       chrome.storage.sync.set({'branch': $('#branch').val()});
-    })
+    });
   })
   .catch((err) => { $('#result').text($('#result').text() + ' : ' + err); });
 });
@@ -47,16 +49,16 @@ function initContext() {
 }
 
 function initPopup() {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     chrome.tabs.getSelected(window.id, function (tab) {
-      $('#url').val(tab.url)
+      $('#url').val(tab.url);
     });
     chrome.storage.sync.get(["repository", "filepath"], (item) => {
       $('#repo').val(item.repository ? item.repository : '');
       $('#filepath').val(item.filepath ? item.filepath : '');
       resolve();
     });
-  })
+  });
 }
 
 function updateRepo() {
@@ -67,12 +69,12 @@ function updateRepo() {
     }).done((repos) => {
       $('.repo-menu').empty();
       repos.forEach((repo) => {
-        let content = `<option class='repo-menu-item' data="${repo.name}">${repo.name}</option>`
+        let content = `<option class='repo-menu-item' data="${repo.name}">${repo.name}</option>`;
         $('.repo-menu').append(content);
       });
       resolve();
-    }).fail((e) => { reject(`error update repo: ${JSON.stringify(e)}`) });
-  })
+    }).fail((e) => { reject(`error update repo: ${JSON.stringify(e)}`); });
+  });
 }
 
 function updateBranch(){
@@ -84,11 +86,11 @@ function updateBranch(){
     }).done((branches) => {
       $('.branch-menu').empty();
       branches.forEach((branch) => {
-        let content = `<option class='branch-menu-item' data="${branch.name}">${branch.name}</option>`
+        let content = `<option class='branch-menu-item' data="${branch.name}">${branch.name}</option>`;
         $('.branch-menu').append(content);
       });
       resolve();
-    }).fail((e) => { reject(`error update branch: ${repository}: ${JSON.stringify(e)}`) });
+    }).fail((e) => { reject(`error update branch: ${repository}: ${JSON.stringify(e)}`); });
   });
 }
 
@@ -118,10 +120,10 @@ function commit(param) {
   .then(get(`${repository}/branches/${branch}`))
   .then((branch) => {
     if (!(context.name && context.email)) {
-      context.name = branch['commit']['commit']['author']['name'];
-      context.email = branch['commit']['commit']['author']['email'];
+      context.name = branch.commit.commit.author.name;
+      context.email = branch.commit.commit.author.email;
     }
-    return get(`${repository}/git/trees/${branch['commit']['commit']['tree']['sha']}`)();
+    return get(`${repository}/git/trees/${branch.commit.commit.tree.sha}`)();
   })
   .then((tree) => {
     // $('#result').text($('#result').text() + ' : ' + 'aaa');
@@ -132,13 +134,13 @@ function commit(param) {
     if (exist.ok) {
       return get(`${repository}/git/blobs/${exist.sha}`)();
     } else {
-      return new Promise((resolve, reject) => { resolve({}) });
+      return new Promise((resolve) => { resolve({}); });
     }
   })
   .then((blob) => {
     // $('#result').text($('#result').text() + ' : ' + JSON.stringify(blob));
-    var content = `- ${url} : ${message}`
-    if (blob != {}) {
+    var content = `- ${url} : ${message}`;
+    if (blob.content) {
       content = Base64.decode(blob.content) + `\n${content}`;
     }
     var data = {
@@ -149,13 +151,13 @@ function commit(param) {
       },
       'content': Base64.encode(content),
       'branch': branch
-    }
-    if (blob != {}) {
+    };
+    if (blob.sha) {
       data.sha = blob.sha;
     }
     return put(`${repository}/contents/${filepath}`, data)();
   })
-  .then((data) => {
+  .then(() => {
     // $('#result').text('Succsess!: ' + JSON.stringify(data));
     $('#result').text('Succsess!');
     chrome.storage.sync.set({'repository': repository, 'branch': branch, 'filepath': filepath});
@@ -164,15 +166,15 @@ function commit(param) {
 }
 
 function initUserInfo() {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     var params = {
       url: `${baseUrl}/users/${user}`,
       headers : { Authorization: `token ${token}` }
     };
     $.ajax(params)
     .done((data) => {
-      context.name = data['name'];
-      context.email = data['email'];
+      context.name = data.name;
+      context.email = data.email;
       resolve();
     });
   });
@@ -217,19 +219,19 @@ function fetch(method, endpoint, data) {
 }
 
 function get(endpoint) {
-  return function() { return fetch('GET', endpoint, null) };
+  return function() { return fetch('GET', endpoint, null); };
 }
 
 function put(endpoint, data) {
-  return function() { return fetch('PUT', endpoint, data) };
+  return function() { return fetch('PUT', endpoint, data); };
 }
 
 function post(endpoint, data) {
-  return function() { return fetch('POST', endpoint, data) };
+  return function() { return fetch('POST', endpoint, data); };
 }
 
 function patch(endpoint, data) {
-  return function() { return fetch('PATCH', endpoint, data) };
+  return function() { return fetch('PATCH', endpoint, data); };
 }
 
 function existContents(filepath, pTree, repository) {
@@ -238,12 +240,12 @@ function existContents(filepath, pTree, repository) {
     // $('#result').text($('#result').text() + ` : ${index} ${path}`);
     var result = {};
     for (var i in pTree) {
-      if (pTree[i].path == path) {
-        if (i == filepaths.length - 1 && pTree[i].type == 'blob') {
-          result = pTree[i]
+      if (pTree[i].path.toString() === path.toString()) {
+        if (i - 0 === filepaths.length - 1 && pTree[i].type.toString() === 'blob') {
+          result = pTree[i];
           break;
-        } else if (pTree[i].type == 'tree') {
-          result = pTree[i]
+        } else if (pTree[i].type.toString() === 'tree') {
+          result = pTree[i];
           break;
         }
       }
@@ -258,7 +260,7 @@ function existContents(filepath, pTree, repository) {
           headers : { Authorization: `token ${token}` }
         }).done((tree) => {
           loop(filepaths, index + 1, tree.tree, resolve);
-        }).fail((jqXHR, textStatus, errorThrown) => {
+        }).fail(() => {
           resolve({ ok: false });
         });
         break;
@@ -267,7 +269,7 @@ function existContents(filepath, pTree, repository) {
     }
   });
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     // $('#result').text($('#result').text() + ' : ' + JSON.stringify(filepath.split('/')));
     loop(filepath.split('/'), 0, pTree, resolve);
   });
