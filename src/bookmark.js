@@ -32,7 +32,7 @@ $(() => {
 });
 
 function initContext() {
-  content = {};
+  context = {};
   return new Promise((resolve, reject) => {
     chrome.storage.sync.get(["token", "user", "baseUrl"], (item) => {
       if (!item.token) {
