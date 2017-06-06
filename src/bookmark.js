@@ -18,7 +18,11 @@ $(() => {
   })
   .then(() => {
     $('#commit').click(() => {
-      runBookmark(getBookmarkParam());
+      if (!$('#commit').hasClass('disabled')) {
+        $('#commit').addClass('disabled');
+        $('#result').addClass('d-none');
+        runBookmark(getBookmarkParam());
+      }
     });
     $('select#repo').change(() => {
       const repoName = $('#repo').val();
@@ -31,8 +35,12 @@ $(() => {
     $('select#branch').change(() => {
       chrome.storage.sync.set({'branch': $('#branch').val()});
     });
+    $('#commit').removeClass('disabled');
   })
-  .catch((err) => { $('#result').text($('#result').text() + ' : ' + err); });
+  .catch((err) => {
+    $('#commit').removeClass('disabled');
+    $('#result').removeClass('d-none').addClass('flash-error').text(err);
+  });
 });
 
 function initContext() {
@@ -165,10 +173,14 @@ function runBookmark(param) {
     return github.put(`repos/${github.user}/${github.repo}/contents/${filepath}`, data)();
   })
   .then(() => {
-    $('#result').text('Succsess!');
+    $('#commit').removeClass('disabled');
+    $('#result').removeClass('d-none').removeClass('flash-error').text('Succsess!');
     chrome.storage.sync.set({'repository': repository, 'branch': branch, 'filepath': filepath});
   })
-  .catch((err) => { $('#result').text($('#result').text() + ' : ' + err); });
+  .catch((err) => {
+    $('#commit').removeClass('disabled');
+    $('#result').removeClass('d-none').addClass('flash-error').text(err);
+  });
 }
 
 function initUserInfo() {
