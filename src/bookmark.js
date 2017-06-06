@@ -31,15 +31,6 @@ $(() => {
   .catch((err) => { $('#result').text($('#result').text() + ' : ' + err); });
 });
 
-var Base64 = {
-  encode: function(str) {
-    return btoa(unescape(encodeURIComponent(str)));
-  },
-  decode: function(str) {
-    return decodeURIComponent(escape(atob(str)));
-  }
-};
-
 function initContext() {
   content = {};
   return new Promise((resolve, reject) => {
