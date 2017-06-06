@@ -1,4 +1,4 @@
-let baseUrl, accessToken, user;
+let baseUrl, token, user;
 let context = {};
 
 $(() => {
