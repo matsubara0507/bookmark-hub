@@ -76,7 +76,8 @@
       "chrome": false,
       "escape": false,
       "unescape": false,
-      "Base64": false
+      "Base64": false,
+      "GitHubAPI": false
     },
     "predef": [ "-context" ]
 }

@@ -1,6 +1,6 @@
 "use strict";
 
-let baseUrl, token, user;
+let github;
 let context = {};
 
 $(() => {
@@ -18,13 +18,15 @@ $(() => {
   })
   .then(() => {
     $('#commit').click(() => {
-      commit(getBookmarkParam());
+      runBookmark(getBookmarkParam());
     });
     $('select#repo').change(() => {
       const repoName = $('#repo').val();
-      chrome.storage.sync.set({'repository': repoName, 'branch': 'master'});
-      $('#branch').val('master');
-      updateBranch();
+      chrome.storage.sync.set({'repository': repoName});
+      github.repo = repoName;
+      updateBranch().then(() => {
+        chrome.storage.sync.set({'branch': $('#branch').val()});
+      });
     });
     $('select#branch').change(() => {
       chrome.storage.sync.set({'branch': $('#branch').val()});
@@ -36,13 +38,16 @@ $(() => {
 function initContext() {
   context = {};
   return new Promise((resolve, reject) => {
-    chrome.storage.sync.get(["token", "user", "baseUrl"], (item) => {
+    chrome.storage.sync.get(["token", "user", "baseUrl", "repository"], (item) => {
       if (!item.token) {
         reject(new Error("need login"));
       }
-      token = item.token;
-      user = item.user;
-      baseUrl = item.baseUrl;
+      github = new GitHubAPI(
+        item.baseUrl,
+        item.user,
+        item.repository,
+        item.token
+      );
       resolve();
     });
   });
@@ -61,36 +66,43 @@ function initPopup() {
   });
 }
 
+function checkGitHubAPI(data = {}) {
+  return new Promise(function(resolve, reject) {
+    if (github === undefined) {
+      reject('GitHubAPI object is undefined.');
+    } else {
+      resolve(data);
+    }
+  });
+}
+
 function updateRepo() {
-  return new Promise((resolve, reject) => {
-    $.ajax({
-      url: `${baseUrl}/user/repos?affiliation=owner`,
-      headers: {Authorization: `token ${token}`}
-    }).done((repos) => {
+  return checkGitHubAPI()
+  .then(github.get(`user/repos?affiliation=owner`))
+  .then((repos) => {
+    return new Promise((resolve) => {
       $('.repo-menu').empty();
       repos.forEach((repo) => {
         let content = `<option class='repo-menu-item' data="${repo.name}">${repo.name}</option>`;
         $('.repo-menu').append(content);
       });
       resolve();
-    }).fail((e) => { reject(`error update repo: ${JSON.stringify(e)}`); });
+    });
   });
 }
 
 function updateBranch(){
-  return new Promise((resolve, reject) => {
-    let repository = $('#repo').val();
-    $.ajax({
-      url: `${baseUrl}/repos/${user}/${repository}/branches`,
-      headers: {Authorization: `token ${token}`}
-    }).done((branches) => {
+  return checkGitHubAPI()
+  .then(github.get(`repos/${github.user}/${github.repo}/branches`))
+  .then((branches) => {
+    return new Promise(function(resolve) {
       $('.branch-menu').empty();
       branches.forEach((branch) => {
         let content = `<option class='branch-menu-item' data="${branch.name}">${branch.name}</option>`;
         $('.branch-menu').append(content);
       });
       resolve();
-    }).fail((e) => { reject(`error update branch: ${repository}: ${JSON.stringify(e)}`); });
+    });
   });
 }
 
@@ -109,7 +121,7 @@ function getBookmarkParam() {
   };
 }
 
-function commit(param) {
+function runBookmark(param) {
   const repository = param.repository;
   const branch = param.branch;
   const filepath = param.filepath;
@@ -117,33 +129,31 @@ function commit(param) {
   const message = param.message;
   initContext()
   .then(initUserInfo)
-  .then(get(`${repository}/branches/${branch}`))
-  .then((branch) => {
+  .then(checkGitHubAPI)
+  .then(() => new Promise((resolve) => { github.repo = repository; resolve(); }))
+  .then(github.get(`repos/${github.user}/${github.repo}/branches/${branch}`))
+  .then(branch => {
     if (!(context.name && context.email)) {
       context.name = branch.commit.commit.author.name;
       context.email = branch.commit.commit.author.email;
     }
-    return get(`${repository}/git/trees/${branch.commit.commit.tree.sha}`)();
+    return github.get(`repos/${github.user}/${github.repo}/git/trees/${branch.commit.commit.tree.sha}`)();
   })
-  .then((tree) => {
-    // $('#result').text($('#result').text() + ' : ' + 'aaa');
-    return existContents(filepath, tree.tree, repository);
-  })
-  .then((exist) => {
-    // $('#result').text($('#result').text() + ' : ' + JSON.stringify(exist));
+  .then(tree => existContents(filepath, tree.tree, repository))
+  .then(exist => {
     if (exist.ok) {
-      return get(`${repository}/git/blobs/${exist.sha}`)();
+      return github.get(`repos/${github.user}/${github.repo}/git/blobs/${exist.sha}`)();
     } else {
-      return new Promise((resolve) => { resolve({}); });
+      return new Promise(resolve => { resolve({}); });
     }
   })
-  .then((blob) => {
-    // $('#result').text($('#result').text() + ' : ' + JSON.stringify(blob));
-    var content = `- ${url} : ${message}`;
+  .then(blob => {
+    var data = {}, content = `- ${url} : ${message}`;
     if (blob.content) {
       content = Base64.decode(blob.content) + `\n${content}`;
+      data.sha = blob.sha;
     }
-    var data = {
+    $.extend(data, {
       'message': (message ? message : 'Bookmark!'),
       'committer': {
         'name': context.name,
@@ -151,14 +161,10 @@ function commit(param) {
       },
       'content': Base64.encode(content),
       'branch': branch
-    };
-    if (blob.sha) {
-      data.sha = blob.sha;
-    }
-    return put(`${repository}/contents/${filepath}`, data)();
+    });
+    return github.put(`repos/${github.user}/${github.repo}/contents/${filepath}`, data)();
   })
   .then(() => {
-    // $('#result').text('Succsess!: ' + JSON.stringify(data));
     $('#result').text('Succsess!');
     chrome.storage.sync.set({'repository': repository, 'branch': branch, 'filepath': filepath});
   })
@@ -166,78 +172,20 @@ function commit(param) {
 }
 
 function initUserInfo() {
-  return new Promise((resolve) => {
-    var params = {
-      url: `${baseUrl}/users/${user}`,
-      headers : { Authorization: `token ${token}` }
-    };
-    $.ajax(params)
-    .done((data) => {
-      context.name = data.name;
-      context.email = data.email;
+  return checkGitHubAPI()
+  .then(github.get(`users/${github.user}`))
+  .then(user => {
+    return new Promise(resolve => {
+      context.name = user.name;
+      context.email = user.email;
       resolve();
     });
   });
 }
 
-function fetch(method, endpoint, data) {
-  return new Promise((resolve, reject) => {
-    var params;
-    switch (method) {
-      case 'GET':
-        params = {
-          url: `${baseUrl}/repos/${user}/${endpoint}`,
-          headers : { Authorization: `token ${token}` }
-        };
-        break;
-      case 'PUT':
-      case 'POST':
-      case 'PATCH':
-        params = {
-          url: `${baseUrl}/repos/${user}/${endpoint}`,
-          headers: {
-            Authorization: `token ${token}`
-          },
-          method: method,
-          crossDomain: true,
-          dataType: 'json',
-          contentType: 'application/json',
-          data: JSON.stringify(data)
-        };
-        break;
-      default:
-        throw 'undefined HTTP method: ' + method;
-    }
-    $.ajax(params)
-    .done((data) => {
-      resolve(data);
-    }).fail((jqXHR, textStatus, errorThrown) => {
-      var temp = `${endpoint}: ${JSON.stringify(jqXHR)}: ${textStatus}: ${errorThrown}`;
-      reject(`REST API Error !!: ${temp}`);
-    });
-  });
-}
-
-function get(endpoint) {
-  return function() { return fetch('GET', endpoint, null); };
-}
-
-function put(endpoint, data) {
-  return function() { return fetch('PUT', endpoint, data); };
-}
-
-function post(endpoint, data) {
-  return function() { return fetch('POST', endpoint, data); };
-}
-
-function patch(endpoint, data) {
-  return function() { return fetch('PATCH', endpoint, data); };
-}
-
-function existContents(filepath, pTree, repository) {
-  var loop = ((filepaths, index, pTree, resolve) => {
+function existContents(filepath, pTree) {
+  var loop = (function (filepaths, index, pTree, resolve) {
     var path = filepaths[index];
-    // $('#result').text($('#result').text() + ` : ${index} ${path}`);
     var result = {};
     for (var i in pTree) {
       if (pTree[i].path.toString() === path.toString()) {
@@ -256,8 +204,8 @@ function existContents(filepath, pTree, repository) {
         break;
       case 'tree':
         $.ajax({
-          url: `${baseUrl}/repos/${user}/${repository}/git/trees/${pTree[i].sha}`,
-          headers : { Authorization: `token ${token}` }
+          url: `${github.baseUrl}/repos/${github.user}/${github.repo}/git/trees/${pTree[i].sha}`,
+          headers : { Authorization: `token ${github.token}` }
         }).done((tree) => {
           loop(filepaths, index + 1, tree.tree, resolve);
         }).fail(() => {
@@ -270,7 +218,6 @@ function existContents(filepath, pTree, repository) {
   });
 
   return new Promise((resolve) => {
-    // $('#result').text($('#result').text() + ' : ' + JSON.stringify(filepath.split('/')));
     loop(filepath.split('/'), 0, pTree, resolve);
   });
 }
