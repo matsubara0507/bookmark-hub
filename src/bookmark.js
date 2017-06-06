@@ -272,25 +272,3 @@ function existContents(filepath, pTree, repository) {
     loop(filepath.split('/'), 0, pTree, resolve);
   });
 }
-
-function formatISO8601(date) {
- var offset = (function (d) {
-   var o = d.getTimezoneOffset() / -60;
-    return ((0 < o) ? '+' : '-') + ('00' + Math.abs(o)).substr(-2) + ':00';
-  })(date);
-
-  return [
-   [
-     date.getFullYear(),
-      ('00' + (date.getMonth() + 1)).substr(-2),
-      ('00' + date.getDate()).substr(-2)
-    ].join('-'),
-    'T',
-    [
-      ('00' + date.getHours()).substr(-2),
-      ('00' + date.getMinutes()).substr(-2),
-      ('00' + date.getSeconds()).substr(-2)
-    ].join(':'),
-    offset
-  ].join('');
-}
