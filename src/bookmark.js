@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 
 let github;
 let context = {};
@@ -10,7 +10,7 @@ $(() => {
   .then(updateBranch)
   .then(() => {
     return new Promise((resolve) => {
-      chrome.storage.sync.get(["branch"], (item) => {
+      chrome.storage.sync.get(['branch'], (item) => {
         $('#branch').val(item.branch ? item.branch : '');
         resolve();
       });
@@ -46,9 +46,10 @@ $(() => {
 function initContext() {
   context = {};
   return new Promise((resolve, reject) => {
-    chrome.storage.sync.get(["token", "user", "baseUrl", "repository"], (item) => {
+    var items = ['token', 'user', 'baseUrl', 'repository'];
+    chrome.storage.sync.get(items, (item) => {
       if (!item.token) {
-        reject(new Error("need login"));
+        reject(new Error('need login'));
       }
       github = new GitHubAPI(
         item.baseUrl,
@@ -63,10 +64,10 @@ function initContext() {
 
 function initPopup() {
   return new Promise((resolve) => {
-    chrome.tabs.getSelected(window.id, function (tab) {
+    chrome.tabs.getSelected(window.id, tab => {
       $('#url').val(tab.url);
     });
-    chrome.storage.sync.get(["repository", "filepath"], (item) => {
+    chrome.storage.sync.get(['repository', 'filepath'], item => {
       $('#repo').val(item.repository ? item.repository : '');
       $('#filepath').val(item.filepath ? item.filepath : '');
       resolve();
@@ -91,7 +92,7 @@ function updateRepo() {
     return new Promise((resolve) => {
       $('.repo-menu').empty();
       repos.forEach((repo) => {
-        let content = `<option class='repo-menu-item' data="${repo.name}">${repo.name}</option>`;
+        let content = `<option data='${repo.name}'>${repo.name}</option>`;
         $('.repo-menu').append(content);
       });
       resolve();
@@ -99,14 +100,14 @@ function updateRepo() {
   });
 }
 
-function updateBranch(){
+function updateBranch() {
   return checkGitHubAPI()
   .then(github.get(`repos/${github.user}/${github.repo}/branches`))
   .then((branches) => {
     return new Promise(function(resolve) {
       $('.branch-menu').empty();
       branches.forEach((branch) => {
-        let content = `<option class='branch-menu-item' data="${branch.name}">${branch.name}</option>`;
+        let content = `<option data='${branch.name}'>${branch.name}</option>`;
         $('.branch-menu').append(content);
       });
       resolve();
@@ -138,25 +139,28 @@ function runBookmark(param) {
   initContext()
   .then(initUserInfo)
   .then(checkGitHubAPI)
-  .then(() => new Promise((resolve) => { github.repo = repository; resolve(); }))
+  .then(() => new Promise(resolve => { github.repo = repository; resolve(); }))
   .then(github.get(`repos/${github.user}/${github.repo}/branches/${branch}`))
   .then(branch => {
     if (!(context.name && context.email)) {
       context.name = branch.commit.commit.author.name;
       context.email = branch.commit.commit.author.email;
     }
-    return github.get(`repos/${github.user}/${github.repo}/git/trees/${branch.commit.commit.tree.sha}`)();
+    var sha = branch.commit.commit.tree.sha;
+    return github.get(`repos/${github.user}/${github.repo}/git/trees/${sha}`)();
   })
   .then(tree => existContents(filepath, tree.tree, repository))
   .then(exist => {
     if (exist.ok) {
-      return github.get(`repos/${github.user}/${github.repo}/git/blobs/${exist.sha}`)();
+      return github.get(
+        `repos/${github.user}/${github.repo}/git/blobs/${exist.sha}`)();
     } else {
       return new Promise(resolve => { resolve({}); });
     }
   })
   .then(blob => {
-    var data = {}, content = `- ${url} : ${message}`;
+    var data = {};
+    var content = `- ${url} : ${message}`;
     if (blob.content) {
       content = Base64.decode(blob.content) + `\n${content}`;
       data.sha = blob.sha;
@@ -170,12 +174,18 @@ function runBookmark(param) {
       'content': Base64.encode(content),
       'branch': branch
     });
-    return github.put(`repos/${github.user}/${github.repo}/contents/${filepath}`, data)();
+    return github.put(
+      `repos/${github.user}/${github.repo}/contents/${filepath}`, data)();
   })
   .then(() => {
     $('#commit').removeClass('disabled');
-    $('#result').removeClass('d-none').removeClass('flash-error').text('Succsess!');
-    chrome.storage.sync.set({'repository': repository, 'branch': branch, 'filepath': filepath});
+    $('#result').removeClass('d-none')
+    .removeClass('flash-error').text('Succsess!');
+    chrome.storage.sync.set({
+      'repository': repository,
+      'branch': branch,
+      'filepath': filepath,
+    });
   })
   .catch((err) => {
     $('#commit').removeClass('disabled');
@@ -196,12 +206,13 @@ function initUserInfo() {
 }
 
 function existContents(filepath, pTree) {
-  var loop = (function (filepaths, index, pTree, resolve) {
+  var loop = (function(filepaths, index, pTree, resolve) {
     var path = filepaths[index];
     var result = {};
     for (var i in pTree) {
       if (pTree[i].path.toString() === path.toString()) {
-        if (i - 0 === filepaths.length - 1 && pTree[i].type.toString() === 'blob') {
+        var length = filepaths.length;
+        if (i - 0 === length - 1 && pTree[i].type.toString() === 'blob') {
           result = pTree[i];
           break;
         } else if (pTree[i].type.toString() === 'tree') {
@@ -212,20 +223,21 @@ function existContents(filepath, pTree) {
     }
     switch (result.type) {
       case 'blob':
-        resolve({ ok: true, sha: pTree[i].sha });
+        resolve({ok: true, sha: pTree[i].sha});
         break;
       case 'tree':
         $.ajax({
-          url: `${github.baseUrl}/repos/${github.user}/${github.repo}/git/trees/${pTree[i].sha}`,
-          headers : { Authorization: `token ${github.token}` }
-        }).done((tree) => {
+          url: `${github.baseUrl}/repos/` +
+                `${github.user}/${github.repo}/git/trees/${pTree[i].sha}`,
+          headers: {Authorization: `token ${github.token}`}
+        }).done(tree => {
           loop(filepaths, index + 1, tree.tree, resolve);
         }).fail(() => {
-          resolve({ ok: false });
+          resolve({ok: false});
         });
         break;
       default:
-        resolve({ ok: false });
+        resolve({ok: false});
     }
   });
 

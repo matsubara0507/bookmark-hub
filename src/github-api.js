@@ -14,7 +14,7 @@
       return new Promise((resolve, reject) => {
         var params = {
           url: `${this.baseUrl}/${endpoint}`,
-          headers : { Authorization: `token ${this.token}` }
+          headers: {Authorization: `token ${this.token}`},
         };
         switch (method) {
           case 'GET':
@@ -27,7 +27,7 @@
               crossDomain: true,
               dataType: 'json',
               contentType: 'application/json',
-              data: JSON.stringify(data)
+              data: JSON.stringify(data),
             });
             break;
           default:
@@ -37,28 +37,29 @@
         .done((data) => {
           resolve(data);
         }).fail((jqXHR, textStatus, errorThrown) => {
-          var temp = `${endpoint}: ${JSON.stringify(jqXHR)}: ${textStatus}: ${errorThrown}`;
+          var temp = `${endpoint}: ${JSON.stringify(jqXHR)}: ` +
+                     `${textStatus}: ${errorThrown}`;
           reject(`REST API Error !!: ${temp}`);
         });
       });
     };
 
-    GitHubAPI.prototype.get = function (endpoint) {
+    GitHubAPI.prototype.get = function(endpoint) {
       const _this = this;
       return function() { return _this.fetch('GET', endpoint, null); };
     };
 
-    GitHubAPI.prototype.put = function (endpoint, data) {
+    GitHubAPI.prototype.put = function(endpoint, data) {
       const _this = this;
       return function() { return _this.fetch('PUT', endpoint, data); };
     };
 
-    GitHubAPI.prototype.post = function (endpoint, data) {
+    GitHubAPI.prototype.post = function(endpoint, data) {
       const _this = this;
       return function() { return _this.fetch('POST', endpoint, data); };
     };
 
-    GitHubAPI.prototype.patch = function (endpoint, data) {
+    GitHubAPI.prototype.patch = function(endpoint, data) {
       const _this = this;
       return function() { return _this.fetch('PATCH', endpoint, data); };
     };
