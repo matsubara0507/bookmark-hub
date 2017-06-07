@@ -212,7 +212,7 @@ function existContents(filepath, pTree) {
     for (var i in pTree) {
       if (pTree[i].path.toString() === path.toString()) {
         var length = filepaths.length;
-        if (i - 0 === length - 1 && pTree[i].type.toString() === 'blob') {
+        if (index === length - 1 && pTree[i].type.toString() === 'blob') {
           result = pTree[i];
           break;
         } else if (pTree[i].type.toString() === 'tree') {
