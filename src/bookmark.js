@@ -87,7 +87,7 @@ function checkGitHubAPI(data = {}) {
 
 function updateRepo() {
   return checkGitHubAPI()
-  .then(github.get(`user/repos?affiliation=owner`))
+  .then(getAllRepository)
   .then((repos) => {
     return new Promise((resolve) => {
       $('.repo-menu').empty();
@@ -203,6 +203,26 @@ function initUserInfo() {
       resolve();
     });
   });
+}
+
+function getAllRepository() {
+  var allRepos = [];
+  var loop = (function(page, resolve, reject) {
+    $.ajax({
+      url: `${github.baseUrl}/user/repos` +
+            `?affiliation=owner&per_page=100&page=${page}`,
+      headers: {Authorization: `token ${github.token}`}
+    }).done(repos => {
+      repos = Object.keys(repos).map(key => repos[key]);
+      if (repos.length === 0) {
+        resolve(allRepos);
+      } else {
+        allRepos = allRepos.concat(repos);
+        loop(page + 1, resolve, reject);
+      }
+    }).fail(err => reject(err));
+  });
+  return new Promise((resolve, reject) => loop(1, resolve, reject));
 }
 
 function existContents(filepath, pTree) {
