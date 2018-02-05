@@ -7,7 +7,13 @@ $(() => {
   initContext()
   .then(updateRepo)
   .then(initPopup)
-  .then(updateBranch)
+  .then(() => {
+    if (github.repository === undefined) {
+      return
+    } else {
+      updateBranch()
+    }
+  })
   .then(() => {
     return new Promise((resolve) => {
       chrome.storage.sync.get(['branch'], (item) => {
